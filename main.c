@@ -1,14 +1,14 @@
-#define _GNU_SOURCE
+#define _POSIX_C_SOURCE 200809L
 
 #include <stdbool.h>
 #include <math.h>
 #include <inttypes.h>
-#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/limits.h>
 
 #include <unistd.h>
 
@@ -119,26 +119,29 @@ static uint32_t uint32_from_float(float n)
 }
 
 static size_t read_size_of_text_from_file(FILE *f) {
-	char *const line = calloc(LINE_MAX, sizeof(char));
-	if (!line) {
-		return 0;
-	}
-
+	char *line = NULL;
+	size_t line_length = 0;
+	char *str_r = NULL;
+	char *end_str = NULL;
+	char *start_str = NULL;
 	size_t start = 0;
 	size_t end = 0;
 	while (!end) {
-		if (!fgets(line, LINE_MAX, f)) {
-			fprintf(stderr, "failed to read line from maps\n");
+		if (getline(&line, &line_length, f) < 0) {
+			if (errno) {
+				perror("getline() failed");
+			} else {
+				fprintf(stderr, "getline() reached EOF\n");
+			}
 			break;
 		}
 
-		char *end_s = line;
-		char *start_s = strsep(&end_s, "-");
-		if (!strcmp(start_s, TEXT_OFFSET_STR)) {
-			fprintf(stderr, "found .text start: %s-%s", line, end_s);
-			end_s = strsep(&end_s, " ");
-			sscanf(start_s, "%zx", &start);
-			sscanf(end_s, "%zx", &end);
+		start_str = strtok_r(line, "-", &str_r);
+		if (!strcmp(start_str, TEXT_OFFSET_STR)) {
+			fprintf(stderr, "found .text start: %s-%s", line, end_str);
+			end_str = strtok_r(NULL, "-", &str_r);
+			sscanf(start_str, "%zx", &start);
+			sscanf(end_str, "%zx", &end);
 			break;
 		}
 	}

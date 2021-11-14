@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -Wpedantic -fsanitize=address,undefined
+CFLAGS=-std=c17 -Wall -Wextra -Wpedantic -fsanitize=address,undefined
 
 sekirofpsunlock: sekirofpsunlock.o
 	$(CC) $(CFLAGS) sekirofpsunlock.o -o sekirofpsunlock

@@ -210,6 +210,26 @@ static void write_float_mem(int fd, off_t addr, float value)
 	pwrite(fd, &value, sizeof(value), addr);
 }
 
+static bool strtol_safer(const char *restrict nptr, long *out_value)
+{
+	bool success = false;
+	const int err = errno;
+	errno = 0;
+
+	char *endptr = NULL;
+	*out_value = strtol(nptr, &endptr, 10);
+	if (errno) {
+		perror("failed to strtol()");
+	} else if (nptr == endptr) {
+		fprintf(stderr, "failed to strtol(), no digits\n");
+	} else {
+		success = true;
+	}
+
+	errno = err;
+	return success;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 3) {
@@ -217,37 +237,51 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	long pid = strtol(argv[1], NULL, 10);
-	if (errno) {
-		fprintf(stderr, "failed to strtol() PID\n");
+	long pid = 0;
+	if (!strtol_safer(argv[1], &pid)) {
+		fprintf(stderr, "failed to strtol_safer() the PID\n");
 		return EXIT_FAILURE;
 	}
 
-	long fps = strtol(argv[2], NULL, 10);
-	if (errno) {
-		fprintf(stderr, "failed to strtol() FPS\n");
+	long fps = 0;
+	if (!strtol_safer(argv[2], &fps)) {
+		fprintf(stderr, "failed to strtol_safer() the FPS\n");
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stderr, "PID is %ld, FPS is %ld\n", pid, fps);
+	if (fprintf(stderr, "PID is %ld, FPS is %ld\n", pid, fps) < 0) {
+		return EXIT_FAILURE;
+	}
 
 	if (fps < 1) {
-		fprintf(stderr, "FPS is < 1, will be set to 60\n");
+		if (fprintf(stderr, "FPS is < 1, will be set to 60\n") < 0) {
+			return EXIT_FAILURE;
+		}
 		fps = 60;
 	} else if (fps > 1 && fps < 30) {
-		fprintf(stderr, "FPS is < 30, will be set to 30\n");
+		if (fprintf(stderr, "FPS is < 30, will be set to 30\n") < 0) {
+			return EXIT_FAILURE;
+		}
 		fps = 30;
 	} else if (fps > 300) {
-		fprintf(stderr, "FPS is > 300, will be set to 300\n");
+		if (fprintf(stderr, "FPS is > 300, will be set to 300\n") < 0) {
+			return EXIT_FAILURE;
+		}
 		fps = 300;
 	}
 
 	float delta_time = (1000.0f / fps) / 1000.0f;
 	float speed_fix = find_speed_fix_for_refresh_rate(fps);
-	fprintf(stderr, "deltatime hex: %#" PRIx32 "\n", uint32_from_float(delta_time));
-	fprintf(stderr, "speed hex: %#" PRIx32 "\n", uint32_from_float(speed_fix));
+	if (fprintf(stderr, "deltatime hex: %#" PRIx32 "\n", uint32_from_float(delta_time)) < 0) {
+		return EXIT_FAILURE;
+	}
+	if (fprintf(stderr, "speed hex: %#" PRIx32 "\n", uint32_from_float(speed_fix)) < 0) {
+		return EXIT_FAILURE;
+	}
 	size_t text_size = read_size_of_text(pid);
-	fprintf(stderr, "size of .text map is %#zx\n", text_size);
+	if (fprintf(stderr, "size of .text map is %#zx\n", text_size) < 0) {
+		return EXIT_FAILURE;
+	}
 
 	char *path = calloc(PATH_MAX, sizeof(char));
 	if (!path) {

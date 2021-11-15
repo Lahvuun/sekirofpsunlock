@@ -347,7 +347,7 @@ int main(int argc, char **argv)
 	fprintf(stderr, "framelock location is %#" PRIxPTR "\n", framelock_location);
 	uintptr_t speed_fix_location = 11 + TEXT_OFFSET + (uintptr_t)find_pattern(fd, framelock_speed_fix, sizeof(framelock_speed_fix) / sizeof(struct pattern_byte), text_size);
 	fprintf(stderr, "framelock speed fix location is %#" PRIxPTR "\n", speed_fix_location);
-	speed_fix_location = read_speed_fix_pointer_address(speed_fix_location, pid);
+	speed_fix_location = read_speed_fix_pointer_address(fd, speed_fix_location);
 	fprintf(stderr, "framelock speed fix pointer address is %#" PRIxPTR "\n", speed_fix_location);
 	write_float_mem(fd, framelock_location + 3, delta_time);
 	write_float_mem(fd, speed_fix_location, speed_fix);

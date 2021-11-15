@@ -153,7 +153,7 @@ static size_t read_size_of_text_from_file(FILE *f) {
 
 		start_str = strtok_r(line, "-", &str_r);
 		if (!strcmp(start_str, TEXT_OFFSET_STR)) {
-			fprintf(stderr, "found .text start: %s-%s", line, end_str);
+			fprintf(stderr, "found .text start: %s-%s", line, str_r);
 			end_str = strtok_r(NULL, "-", &str_r);
 			sscanf(start_str, "%zx", &start);
 			sscanf(end_str, "%zx", &end);

@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include <assert.h>
 #include <stdbool.h>
 #include <math.h>
 #include <inttypes.h>
@@ -8,12 +9,14 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <linux/limits.h>
+#include <limits.h>
 
 #include <unistd.h>
 
 #define TEXT_OFFSET 0x140001000
 #define TEXT_OFFSET_STR "140001000"
+
+#define log_failure(format) (fprintf(stderr, "%s:%d: "format"() failed\n", __func__, __LINE__))
 
 struct pattern_byte {
 	uint8_t value;
@@ -95,6 +98,18 @@ float patch_framelock_speed_fix_matrix[] = {
             150.0f,
 };
 
+static bool long_to_size_t(long value, size_t *out_value)
+{
+	static_assert(SIZE_MAX >= LONG_MAX, "size_t can't hold the value of long");
+
+	if (value < 0) {
+		return false;
+	}
+	*out_value = value;
+
+	return true;
+}
+
 static float find_speed_fix_for_refresh_rate(long frame_limit) {
 	float ideal_speed_fix = frame_limit / 2.0f;
 	float closest_speed_fix = 30.0f;
@@ -150,24 +165,58 @@ static size_t read_size_of_text_from_file(FILE *f) {
 	return end - start;
 }
 
+static FILE *fopen_maps(long pid)
+{
+	size_t path_length = 0;
+	long path_max = pathconf("/proc", _PC_PATH_MAX);
+	if (-1 == path_max) {
+		if (errno) {
+			perror("pathconf() failed");
+		} else {
+			fprintf(stderr, "max path length is indeterminable\n");
+		}
+		return 0;
+	}
+	if (!long_to_size_t(path_max, &path_length)) {
+		fprintf(stderr, "long_to_size_t() failed\n");
+		return 0;
+	}
+
+	char *s = calloc(path_length, sizeof(char));
+	if (!s) {
+		log_failure("calloc");
+		return 0;
+	}
+
+	FILE *f = NULL;
+	if (sprintf(s, "/proc/%ld/maps", pid) < 0) {
+		log_failure("sprintf");
+		goto cleanup;
+	}
+
+	f = fopen(s, "r");
+	if (!f) {
+		log_failure("fopen");
+	}
+
+cleanup:
+	free(s);
+	return f;
+}
+
 static size_t read_size_of_text(long pid)
 {
-	char *s = calloc(PATH_MAX, sizeof(char));
-	if (!s) {
-		return 0;
-	}
-
-	sprintf(s, "/proc/%ld/maps", pid);
-	FILE *f = fopen(s, "r");
-	free(s);
+	FILE *f = fopen_maps(pid);
 	if (!f) {
-		fprintf(stderr, "failed to open maps\n");
+		log_failure("fopen_maps");
+		return 0;
+	}
+	size_t size = read_size_of_text_from_file(f);
+	if (fclose(f) == EOF) {
+		perror("fclose() failed");
 		return 0;
 	}
 
-	size_t size = read_size_of_text_from_file(f);
-
-	fclose(f);
 	return size;
 }
 

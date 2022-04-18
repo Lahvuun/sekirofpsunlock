@@ -227,7 +227,20 @@ size_t find_pattern(int fd, const struct pattern_byte *const pattern_bytes, size
 		return 0;
 	}
 
-	pread(fd, bytes, section_size, TEXT_OFFSET);
+	ssize_t ret = pread(fd, bytes, section_size, TEXT_OFFSET);
+	if (ret < 0) {
+		perror("pread() failed");
+		return 0;
+	}
+	if (ret < 1) {
+		fprintf(stderr, "pread() reached EOF\n");
+		return 0;
+	}
+	// TODO: handle.
+	if (ret >= 0 && ret < section_size) {
+		fprintf(stderr, "pread() read less bytes than requested\n");
+		return 0;
+	}
 	size_t location = 0;
 	for (size_t i = 0; i < section_size; ++i) {
 		for (size_t j = 0; j < pattern_length; ++j) {

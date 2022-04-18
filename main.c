@@ -343,7 +343,8 @@ int main(int argc, char **argv)
 	snprintf(path, PATH_MAX, "/proc/%ld/mem", pid);
 	int fd = open(path, O_RDWR);
 	if (fd < 0) {
-		fprintf(stderr, "open(%s, O_RDWR) failed\n", path);
+		fprintf(stderr, "open(\"%s\", O_RDWR) failed, errno = %d\n", path, errno);
+		perror("error");
 		return EXIT_FAILURE;
 	}
 	free(path);

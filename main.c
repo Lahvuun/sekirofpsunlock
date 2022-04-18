@@ -342,10 +342,22 @@ int main(int argc, char **argv)
 	}
 	snprintf(path, PATH_MAX, "/proc/%ld/mem", pid);
 	int fd = open(path, O_RDWR);
+	if (fd < 0) {
+		fprintf(stderr, "open(%s, O_RDWR) failed\n", path);
+		return EXIT_FAILURE;
+	}
 	free(path);
 	uintptr_t framelock_location = TEXT_OFFSET + (uintptr_t)find_pattern(fd, framelock, sizeof(framelock) / sizeof(struct pattern_byte), text_size);
+	if (framelock_location == TEXT_OFFSET) {
+		fprintf(stderr, "framelock_location find_pattern failed\n");
+		return EXIT_FAILURE;
+	}
 	fprintf(stderr, "framelock location is %#" PRIxPTR "\n", framelock_location);
 	uintptr_t speed_fix_location = 11 + TEXT_OFFSET + (uintptr_t)find_pattern(fd, framelock_speed_fix, sizeof(framelock_speed_fix) / sizeof(struct pattern_byte), text_size);
+	if (speed_fix_location == 11 + TEXT_OFFSET) {
+		fprintf(stderr, "speed_fix_location find_pattern failed\n");
+		return EXIT_FAILURE;
+	}
 	fprintf(stderr, "framelock speed fix location is %#" PRIxPTR "\n", speed_fix_location);
 	speed_fix_location = read_speed_fix_pointer_address(fd, speed_fix_location);
 	fprintf(stderr, "framelock speed fix pointer address is %#" PRIxPTR "\n", speed_fix_location);

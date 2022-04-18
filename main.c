@@ -345,9 +345,11 @@ int main(int argc, char **argv)
 	if (fd < 0) {
 		fprintf(stderr, "open(\"%s\", O_RDWR) failed, errno = %d\n", path, errno);
 		perror("error");
-		return EXIT_FAILURE;
 	}
 	free(path);
+	if (fd < 0) {
+		return EXIT_FAILURE;
+	}
 	uintptr_t framelock_location = TEXT_OFFSET + (uintptr_t)find_pattern(fd, framelock, sizeof(framelock) / sizeof(struct pattern_byte), text_size);
 	if (framelock_location == TEXT_OFFSET) {
 		fprintf(stderr, "framelock_location find_pattern failed\n");

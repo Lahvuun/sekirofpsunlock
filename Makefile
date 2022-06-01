@@ -1,4 +1,3 @@
-CC=gcc
 CFLAGS=-std=c17 -Wall -Wextra -Wpedantic -fsanitize=address,undefined
 
 sekirofpsunlock: sekirofpsunlock.o

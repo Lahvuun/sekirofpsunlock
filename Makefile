@@ -5,3 +5,8 @@ sekirofpsunlock: sekirofpsunlock.o
 
 sekirofpsunlock.o: main.c
 	$(CC) $(CFLAGS) -c main.c -o sekirofpsunlock.o
+
+.PHONY: clean
+clean:
+	$(RM) sekirofpsunlock
+	$(RM) sekirofpsunlock.o

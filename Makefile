@@ -1,4 +1,4 @@
-CFLAGS=-std=c17 -Wall -Wextra -Wpedantic -fanalyzer -fsanitize=address,undefined
+CFLAGS=-std=c17 -Wall -Wextra -Wpedantic -fanalyzer
 
 sekirofpsunlock: sekirofpsunlock.o
 	$(CC) $(CFLAGS) sekirofpsunlock.o -o sekirofpsunlock

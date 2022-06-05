@@ -1,4 +1,4 @@
-CFLAGS=-std=c17 -Wall -Wextra -Wpedantic -fanalyzer
+CFLAGS=-O2 -std=c17 -Wall -Wextra -Wpedantic -fanalyzer
 
 sekirofpsunlock: sekirofpsunlock.o
 	$(CC) $(CFLAGS) sekirofpsunlock.o -o sekirofpsunlock

@@ -144,7 +144,7 @@ static bool patch_game_fps(struct game_patch_context *context)
 	return success;
 }
 
-bool set_fps(pid_t pid, float fps)
+static bool set_fps(pid_t pid, float fps)
 {
 	struct game_patch_data game_patch_data = {
 		.fps = fps,

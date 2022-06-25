@@ -28,7 +28,7 @@ struct ignorable_byte {
     uint8_t value;
 };
 
-bool string_to_uintmax_t(char *s, int base, uintmax_t *n_out);
+bool string_to_uintmax_t(const char *s, int base, uintmax_t *n_out);
 bool string_to_pid_t(char *s, int base, pid_t *pid_out);
 bool find_pattern(const struct ignorable_byte *pattern_bytes, const size_t pattern_bytes_length, const uint8_t *bytes,
 		  const size_t bytes_length, size_t *position_out);

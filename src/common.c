@@ -192,7 +192,7 @@ static bool size_t_to_long(size_t value, long *value_out)
 	return true;
 }
 
-bool string_to_uintmax_t(char *s, int base, uintmax_t *n_out)
+bool string_to_uintmax_t(const char *s, int base, uintmax_t *n_out)
 {
 	int errno_stored = errno;
 	errno = 0;

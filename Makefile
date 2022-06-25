@@ -1,5 +1,8 @@
 CFLAGS=-O2 -std=c17 -Wall -Wextra -Wpedantic -Iinclude
 
+.PHONY: all
+all: sekiro-set-fps
+
 sekiro-set-fps: src/fps.c src/common.o
 	$(CC) $(CFLAGS) src/fps.c src/common.o -o sekiro-set-fps
 

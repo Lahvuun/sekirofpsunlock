@@ -1,12 +1,12 @@
-CFLAGS=-O2 -std=c17 -Wall -Wextra -Wpedantic -fanalyzer
+CFLAGS=-O2 -std=c17 -Wall -Wextra -Wpedantic -Iinclude
 
-sekirofpsunlock: sekirofpsunlock.o
-	$(CC) $(CFLAGS) sekirofpsunlock.o -o sekirofpsunlock
+sekiro-set-fps: src/fps.c src/common.o
+	$(CC) $(CFLAGS) src/fps.c src/common.o -o sekiro-set-fps
 
-sekirofpsunlock.o: main.c
-	$(CC) $(CFLAGS) -c main.c -o sekirofpsunlock.o
+src/common.o: src/common.c
+	$(CC) $(CFLAGS) -c src/common.c -o src/common.o
 
 .PHONY: clean
 clean:
-	$(RM) sekirofpsunlock
-	$(RM) sekirofpsunlock.o
+	$(RM) sekiro-set-fps
+	$(RM) src/common.o

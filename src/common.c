@@ -15,25 +15,6 @@
 
 static char string_buffer[STRING_BUFFER_SIZE] = "";
 
-static bool string_to_uintmax_t(char *s, int base, uintmax_t *n_out)
-{
-	int errno_stored = errno;
-	errno = 0;
-	char *endptr = NULL;
-	*n_out = strtoumax(s, &endptr, base);
-	if (errno) {
-		perror("strtoumax() failed");
-		return false;
-	}
-	errno = errno_stored;
-	if (endptr == s) {
-		fprintf(stderr, "strtoumax() failed, no digits were read\n");
-		return false;
-	}
-
-	return true;
-}
-
 static bool string_to_size_t(char *s, int base, size_t *n_out)
 {
 	uintmax_t n_uintmax_t;
@@ -207,6 +188,25 @@ static bool size_t_to_long(size_t value, long *value_out)
 	}
 
 	*value_out = value;
+
+	return true;
+}
+
+bool string_to_uintmax_t(char *s, int base, uintmax_t *n_out)
+{
+	int errno_stored = errno;
+	errno = 0;
+	char *endptr = NULL;
+	*n_out = strtoumax(s, &endptr, base);
+	if (errno) {
+		perror("strtoumax() failed");
+		return false;
+	}
+	errno = errno_stored;
+	if (endptr == s) {
+		fprintf(stderr, "strtoumax() failed, no digits were read\n");
+		return false;
+	}
 
 	return true;
 }

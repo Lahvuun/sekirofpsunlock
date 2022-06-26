@@ -219,8 +219,8 @@ bool string_to_pid_t(char *s, int base, pid_t *pid_out)
 		return false;
 	}
 
-	const long pid_t_max = ~(1 << (sizeof(pid_t) * 8 - 1));
-	if (pid_long > pid_t_max) {
+	static_assert(sizeof(int32_t) == sizeof(pid_t), "pid_t must take the same amount of bytes as int32_t");
+	if (pid_long > INT32_MAX) {
 		fprintf(stderr, "pid is too big for pid_t\n");
 		return false;
 	}

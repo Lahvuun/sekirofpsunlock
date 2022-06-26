@@ -15,24 +15,6 @@
 
 static char string_buffer[STRING_BUFFER_SIZE] = "";
 
-static bool string_to_size_t(char *s, int base, size_t *n_out)
-{
-	uintmax_t n_uintmax_t;
-	if (!string_to_uintmax_t(s, base, &n_uintmax_t)) {
-		fprintf(stderr, "string_to_uintmax_t() failed\n");
-		return false;
-	}
-
-	if (n_uintmax_t > SIZE_MAX) {
-		fprintf(stderr, "value is larger than SIZE_MAX\n");
-		return false;
-	}
-
-	*n_out = n_uintmax_t;
-
-	return true;
-}
-
 static bool fill_proc_path(char *destination, size_t destination_length, long pid, char *rest)
 {
 	int written = snprintf(destination, destination_length, "/proc/%ld/%s", pid, rest);
@@ -51,81 +33,6 @@ static bool fill_proc_path(char *destination, size_t destination_length, long pi
 	return true;
 }
 
-static bool find_text_section_size_with_file(FILE *f, size_t *size_out)
-{
-	const char text_section_start[] = "140001000";
-	do {
-		if (!fgets(string_buffer, STRING_BUFFER_SIZE, f)) {
-			if (feof(f)) {
-				fprintf(stderr, "fgets() failed: reached end-of-file before .text could be found\n");
-			} else {
-				fprintf(stderr, "fgets() failed\n");
-			}
-			return false;
-		}
-	} while (strncmp(string_buffer, text_section_start, sizeof(text_section_start) - 1));
-
-	if (!strtok(string_buffer, "-")) {
-		fprintf(stderr, "strtok() found no tokens when there should be\n");
-		return false;
-	}
-
-	char *token = strtok(NULL, " ");
-	if (!token) {
-		fprintf(stderr, "strtok() found no tokens when there should be\n");
-		return false;
-	}
-
-	if (!string_to_size_t(token, 16, size_out)) {
-		fprintf(stderr, "string_to_size_t() failed\n");
-		return false;
-	}
-
-	*size_out -= TEXT_OFFSET;
-
-	return true;
-}
-
-static bool find_text_section_size(pid_t pid, size_t *size_out)
-{
-	if (!fill_proc_path(string_buffer, STRING_BUFFER_SIZE, pid, "maps")) {
-		fprintf(stderr, "fill_proc_path() failed\n");
-		return false;
-	}
-
-	FILE *f = fopen(string_buffer, "r");
-	if (!f) {
-		perror("fopen() failed");
-		return false;
-	}
-
-	bool success = find_text_section_size_with_file(f, size_out);
-
-	if (fclose(f) == EOF) {
-		perror("fclose() failed");
-		return false;
-	}
-
-	return success;
-}
-
-static bool patch_stopped_process_with_file(FILE *f, pid_t pid, struct game_patch *game_patch)
-{
-	size_t text_size = 0;
-	if (!find_text_section_size(pid, &text_size)) {
-		fprintf(stderr, "find_text_section_size() failed\n");
-		return false;
-	}
-
-	struct game_patch_context context = {
-		.f = f,
-		.text_section_size = text_size,
-		.game_patch_data = game_patch->game_patch_data,
-	};
-
-	return game_patch->game_patch_function(&context);
-}
-
 static bool patch_stopped_process(pid_t pid, struct game_patch *game_patch)
 {
 	if (!fill_proc_path(string_buffer, STRING_BUFFER_SIZE, pid, "mem")) {
@@ -139,7 +46,11 @@ static bool patch_stopped_process(pid_t pid, struct game_patch *game_patch)
 		return false;
 	}
 
-	bool success = patch_stopped_process_with_file(f, pid, game_patch);
+	struct game_patch_context context = {
+		.f = f,
+		.game_patch_data = game_patch->game_patch_data,
+	};
+	bool success = game_patch->game_patch_function(&context);
 
 	if (fclose(f) == EOF) {
 		perror("fclose() failed");

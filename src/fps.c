@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "common.h"
+#include "pe.h"
 
 struct game_patch_data {
 	float fps;
@@ -90,35 +91,36 @@ static float find_speed_fix_for_refresh_rate(float frame_limit) {
 	return closest_speed_fix;
 }
 
-static bool patch_game_fps_with_buffer(FILE *f, uint8_t *buffer, size_t buffer_length, float fps)
+static bool patch_framelock(FILE *f, float fps, uint8_t *section_bytes, size_t section_bytes_size, size_t section_position)
 {
-	if (!seek_and_read_bytes(buffer, buffer_length, TEXT_OFFSET, f)) {
-		fprintf(stderr, "seek_and_read_bytes() failed\n");
-		return false;
-	}
-
 	size_t pattern_framelock_index = 0;
-	if (!find_pattern(pattern_framelock_fuzzy, sizeof(pattern_framelock_fuzzy) / sizeof(struct ignorable_byte), buffer, buffer_length, &pattern_framelock_index)) {
+	if (!find_pattern(pattern_framelock_fuzzy, sizeof(pattern_framelock_fuzzy) / sizeof(struct ignorable_byte), section_bytes, section_bytes_size, &pattern_framelock_index)) {
 		fprintf(stderr, "find_pattern(pattern_framelock_fuzzy, ...) failed\n");
 		return false;
 	}
 
-	size_t pattern_framelock_speed_fix_index = 0;
-	if (!find_pattern(pattern_framelock_speed_fix, sizeof(pattern_framelock_speed_fix) / sizeof(struct ignorable_byte), buffer, buffer_length, &pattern_framelock_speed_fix_index)) {
-		fprintf(stderr, "find_pattern(pattern_framelock_speed_fix_position, ...) failed\n");
-		return false;
-	}
 	size_t framelock_value_index = pattern_framelock_index + 3;
 	static_assert(sizeof(fps) == 4, "the game expects fps to be 4 bytes long");
 	float delta_time = 1000.0f / fps / 1000.0f;
-	if (!seek_and_write_bytes((uint8_t *)&delta_time, sizeof(fps), TEXT_OFFSET + framelock_value_index, f)) {
+	if (!seek_and_write_bytes((uint8_t *)&delta_time, sizeof(fps), section_position + framelock_value_index, f)) {
 		fprintf(stderr, "seek_and_write_bytes() failed\n");
 		return false;
 	}
 
+	return true;
+}
+
+static bool patch_framelock_speed_fix(FILE *f, float fps, uint8_t *section_bytes, size_t section_bytes_size, size_t section_position)
+{
+	size_t pattern_framelock_speed_fix_index = 0;
+	if (!find_pattern(pattern_framelock_speed_fix, sizeof(pattern_framelock_speed_fix) / sizeof(struct ignorable_byte), section_bytes, section_bytes_size, &pattern_framelock_speed_fix_index)) {
+		fprintf(stderr, "find_pattern(pattern_framelock_speed_fix_position, ...) failed\n");
+		return false;
+	}
+
 	size_t framelock_speed_fix_offset_index = pattern_framelock_speed_fix_index + 15;
-	uint32_t framelock_speed_fix_offset = *(uint32_t *)(buffer + framelock_speed_fix_offset_index);
-	size_t framelock_speed_fix_position = TEXT_OFFSET + framelock_speed_fix_offset_index + 4 + framelock_speed_fix_offset;
+	uint32_t framelock_speed_fix_offset = *(uint32_t *)(section_bytes + framelock_speed_fix_offset_index);
+	size_t framelock_speed_fix_position = section_position + framelock_speed_fix_offset_index + 4 + framelock_speed_fix_offset;
 	float framelock_speed_fix_value = find_speed_fix_for_refresh_rate(fps);
 	static_assert(sizeof(framelock_speed_fix_value) == 4, "the game expects framelock_speed_fix_value to be 4 bytes long");
 	if (!seek_and_write_bytes((uint8_t *)&framelock_speed_fix_value, sizeof(framelock_speed_fix_value), framelock_speed_fix_position, f)) {
@@ -128,18 +130,34 @@ static bool patch_game_fps_with_buffer(FILE *f, uint8_t *buffer, size_t buffer_l
 
 	return true;
 }
-
-static bool patch_game_fps(struct game_patch_context *context)
+static bool patch_game_fps_with_section(FILE *f, float fps, uint8_t *section_bytes, size_t section_bytes_size, size_t section_position)
 {
-	uint8_t *bytes = calloc(context->text_section_size, sizeof(uint8_t));
-	if (!bytes) {
-		fprintf(stderr, "calloc() failed\n");
+	if (!patch_framelock(f, fps, section_bytes, section_bytes_size, section_position)) {
+		fprintf(stderr, "patch_framelock() failed\n");
 		return false;
 	}
 
-	bool success = patch_game_fps_with_buffer(context->f, bytes, context->text_section_size, context->game_patch_data->fps);
+	if (!patch_framelock_speed_fix(f, fps, section_bytes, section_bytes_size, section_position)) {
+		fprintf(stderr, "patch_framelock_speed_fix() failed\n");
+		return false;
+	}
 
-	free(bytes);
+	return true;
+}
+
+static bool patch_game_fps(struct game_patch_context *context)
+{
+	uint8_t *section_bytes = NULL;
+	size_t section_bytes_size = 0;
+	size_t section_position = 0;
+	if (!extract_section(".text", context->f, &section_bytes, &section_bytes_size, &section_position)) {
+		fprintf(stderr, "extract_section() failed\n");
+		return false;
+	}
+
+	bool success = patch_game_fps_with_section(context->f, context->game_patch_data->fps, section_bytes, section_bytes_size, section_position);
+
+	free(section_bytes);
 
 	return success;
 }

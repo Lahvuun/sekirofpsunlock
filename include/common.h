@@ -4,15 +4,12 @@
 #include <stdio.h>
 #include <sys/types.h>
 
-#define TEXT_OFFSET 0x140001000
-
 #define log_failure(str) (fprintf(stderr, "%s:%s at %d\n", str, __FILE__, __LINE__))
 
 struct game_patch_data;
 
 struct game_patch_context {
 	FILE *f;
-	size_t text_section_size;
 	struct game_patch_data *game_patch_data;
 };
 

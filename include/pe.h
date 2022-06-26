@@ -29,7 +29,7 @@ struct section_header {
 	char name[8];
 	uint32_t virtual_size;
 	uint32_t virtual_address;
-	uint8_t ignored[20];
+	uint8_t ignored[24];
 };
 
 bool extract_section(char *name, FILE *f, uint8_t **section_bytes_out, size_t *section_bytes_size_out, size_t *section_position_out);

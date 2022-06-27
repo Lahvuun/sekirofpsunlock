@@ -33,6 +33,8 @@ In the first case, you can patch the game before it first sets the display mode 
 ./wait-and-patch.sh ./sekiro-set-resolution 2560 2560 1080
 ```
 Start the script before you run the game. Once it's running, the script will run the patcher and exit.
+
+If you want to go with the second option, simply change to a different resolution and then back, or switch to windowed and back to full screen.
 #### UI issues
 ##### 21:9
 ![UI elements not matching the resolution](https://staticdelivery.nexusmods.com/mods/2763/images/240/240-1606870250-478083709.png)

@@ -27,6 +27,7 @@ For example, with a screen (viewport) at 2560x1080 and game running in full scre
 This will only take effect once the game sets its display mode. It can happen in two ways:
 - Automatically, when the game is started.
 - Triggered by the player, when changing resolution or windowing mode.
+
 In the first case, you can patch the game before it first sets the display mode (indeed, this is what SekiroFpsUnlockAndMore does under Windows). To make this easier, I provided a script that will wait until a process called sekiro.exe is present and then execute the patcher you provided to it:
 ``` sh
 ./wait-and-patch.sh ./sekiro-set-resolution 2560 2560 1080

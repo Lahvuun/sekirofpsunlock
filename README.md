@@ -35,6 +35,8 @@ In the first case, you can patch the game before it first sets the display mode 
 Start the script before you run the game. Once it's running, the script will run the patcher and exit.
 
 If you want to go with the second option, simply change to a different resolution and then back, or switch to windowed and back to full screen.
+
+Note: you will only be able to set the resolution once, subsequent attempts will fail. As things are currently, you'd need to restart the game to try a different resolution. It's possible to have it working, but I don't see why anyone would want to set the resolution more than once per play session, so I didn't bother implementing it.
 #### UI issues
 ##### 21:9
 ![UI elements not matching the resolution](https://staticdelivery.nexusmods.com/mods/2763/images/240/240-1606870250-478083709.png)

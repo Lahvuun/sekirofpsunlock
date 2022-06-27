@@ -41,6 +41,7 @@ If you want to go with the second option, simply change to a different resolutio
 There's a reason the game forces 16:9 aspect ratio: the UI elements are not designed for other aspect ratios. For 21:9, you can use [Ultrawide UI Fixes](https://www.nexusmods.com/sekiro/mods/240). The install steps under Linux are quite simple:
 - Install [Sekiro Mod Engine](https://www.nexusmods.com/sekiro/mods/6). Download, unpack and put the two files (`dinput8.dll` and `modengine.ini`) to Sekiro's game folder.
 - Download [Aspect Ratio 21 x 9 main file](https://www.nexusmods.com/sekiro/mods/240?tab=files), move menu folder into the folder named `mods` in Sekiro's game folder.
+
 After these steps, your Sekiro game folder should like something like this:
 ```
 ...

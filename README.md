@@ -70,7 +70,7 @@ mods/menu/03_202_bonfire.gfx
 mods/menu/05_000_title.gfx
 mods/menu/05_900_logo_fromsoft.gfx
 ```
-The last step is actually activating the mod loader. It is loaded through `dinput8.dll`, but by default Wine will use its own version, not the one in the game folder. To get Wine to actually use it, you need to set a DLL override. With Steam, this is easy to do: set the launch options to `WINEDLLOVERRIDES dinput8=n,b %command%`.
+The last step is actually activating the mod loader. It is loaded through `dinput8.dll`, but by default Wine will use its own version, not the one in the game folder. To get Wine to actually use it, you need to set a DLL override. With Steam, this is easy to do: set the launch options to `WINEDLLOVERRIDES=dinput8=n,b %command%`.
 ![DLL override example](override.png)
 ##### 16:10
 Unfortunately, there is no mod that fixes the UI for 16:10, so Steam Deck users are out of luck.

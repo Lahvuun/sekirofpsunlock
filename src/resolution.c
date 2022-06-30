@@ -1,13 +1,11 @@
-#include <stdlib.h>
+#include "resolution.h"
 
 #include "common.h"
-#include "pe.h"
+#include "signals.h"
 
-struct game_patch_data {
-	uint32_t screen_width;
-	uint32_t game_width;
-	uint32_t game_height;
-};
+#include <stdlib.h>
+#include <sys/ptrace.h>
+#include <time.h>
 
 static struct ignorable_byte pattern_resolution_default[] = {
 	{ .is_ignored = false, .value = 0x80 }, { .is_ignored = false, .value = 0x7 },
@@ -50,54 +48,68 @@ static struct ignorable_byte pattern_resolution_scaling_fix[] = {
 	{ .is_ignored = false, .value = 0x74 },
 };
 
-static bool string_to_uint32_t(char *string, uint32_t *value_out)
+static bool patch_resolution_default_with_section(struct context *context, uint32_t screen_width, uint32_t game_width, uint32_t game_height, uint8_t *section_bytes,
+						  size_t section_bytes_size, size_t section_position)
 {
-	uintmax_t value_uintmax_t = 0;
-	if (!string_to_uintmax_t(string, 10, &value_uintmax_t)) {
-		fprintf(stderr, "string_to_uintmax_t() failed\n");
+	time_t start_time = time(NULL);
+	if ((time_t)-1 == start_time) {
+		perror("time() failed");
 		return false;
 	}
 
-	if (value_uintmax_t > UINT32_MAX) {
-		fprintf(stderr, "value is larger than UINT32_MAX\n");
-		return false;
-	}
-
-	*value_out = value_uintmax_t;
-
-	return true;
-}
-
-static bool patch_resolution_default_with_section(struct game_patch_context *context, uint8_t *section_bytes,
-						  size_t section_bytes_size, size_t section_positon)
-{
 	size_t pattern_resolution_default_index = 0;
-	if (context->game_patch_data->screen_width < 1920) {
-		if (!find_pattern(pattern_resolution_default_720,
-				  sizeof(pattern_resolution_default_720) / sizeof(struct ignorable_byte), section_bytes,
-				  section_bytes_size, &pattern_resolution_default_index)) {
-			fprintf(stderr, "find_pattern() failed\n");
+	time_t current_time = start_time;
+	while (true) {
+		if (got_sigterm) {
+			fprintf(stderr, "got SIGTERM, exiting\n");
 			return false;
 		}
-	} else {
-		if (!find_pattern(pattern_resolution_default,
-				  sizeof(pattern_resolution_default) / sizeof(struct ignorable_byte), section_bytes,
-				  section_bytes_size, &pattern_resolution_default_index)) {
-			fprintf(stderr, "find_pattern() failed\n");
+
+		if (got_sigchld) {
+			if (ptrace(PTRACE_CONT, context->pid, NULL, NULL) == -1) {
+				perror("ptrace(PTRACE_CONT) failed");
+				return false;
+			}
+			got_sigchld = 0;
+		}
+
+		if (screen_width < 1920) {
+			if (find_pattern(pattern_resolution_default_720,
+					sizeof(pattern_resolution_default_720) / sizeof(struct ignorable_byte), context->f, section_bytes,
+					section_bytes_size, section_position, &pattern_resolution_default_index)) {
+				stop_and_wait(context);
+				break;
+			}
+		} else {
+			if (find_pattern(pattern_resolution_default,
+					sizeof(pattern_resolution_default) / sizeof(struct ignorable_byte), context->f, section_bytes,
+					section_bytes_size, section_position, &pattern_resolution_default_index)) {
+				stop_and_wait(context);
+				break;
+			}
+		}
+
+		current_time = time(NULL);
+		if ((time_t)-1 == current_time) {
+			perror("time() failed");
+			return false;
+		}
+		if ((current_time - start_time) > context->timeout) {
+			fprintf(stderr, "timeout reached while looking for resolution default pattern\n");
 			return false;
 		}
 	}
 
-	if (!seek_and_write_bytes((uint8_t *)&context->game_patch_data->game_width,
-				  sizeof(context->game_patch_data->game_width),
-				  section_positon + pattern_resolution_default_index, context->f)) {
+	if (!seek_and_write_bytes((uint8_t *)&game_width,
+				  sizeof(game_width),
+				  section_position + pattern_resolution_default_index, context->f)) {
 		fprintf(stderr, "seek_and_write_bytes() failed\n");
 		return false;
 	}
 
-	if (!seek_and_write_bytes((uint8_t *)&context->game_patch_data->game_height,
-				  sizeof(context->game_patch_data->game_height),
-				  section_positon + pattern_resolution_default_index + 4, context->f)) {
+	if (!seek_and_write_bytes((uint8_t *)&game_height,
+				  sizeof(game_height),
+				  section_position + pattern_resolution_default_index + 4, context->f)) {
 		fprintf(stderr, "seek_and_write_bytes() failed\n");
 		return false;
 	}
@@ -105,33 +117,70 @@ static bool patch_resolution_default_with_section(struct game_patch_context *con
 	return true;
 }
 
-static bool patch_resolution_default(struct game_patch_context *context)
+static bool patch_resolution_default(struct context *context, uint32_t screen_width, uint32_t game_width, uint32_t game_height)
 {
-	uint8_t *section_bytes = NULL;
-	size_t section_bytes_size = 0;
-	size_t section_position = 0;
-	if (!extract_section(".data", context->f, &section_bytes, &section_bytes_size, &section_position)) {
-		fprintf(stderr, "extract_section() failed\n");
+	size_t section_position;
+	size_t section_size = 0;
+	if (!find_section_info(".data", context->f, &section_position, &section_size)) {
+		fprintf(stderr, "find_section_info(\".data\", ...) failed\n");
+		return false;
+	}
+
+	uint8_t *section_buffer = calloc(section_size, sizeof(uint8_t));
+	if (!section_buffer) {
+		fprintf(stderr, "calloc() failed\n");
 		return false;
 	}
 
 	bool success =
-		patch_resolution_default_with_section(context, section_bytes, section_bytes_size, section_position);
+		patch_resolution_default_with_section(context, screen_width, game_width, game_height, section_buffer, section_size, section_position);
 
-	free(section_bytes);
+	free(section_buffer);
 
 	return success;
 }
 
-static bool patch_resolution_scaling_fix_with_section(struct game_patch_context *context, uint8_t *section_bytes,
+static bool patch_resolution_scaling_fix_with_section(struct context *context, uint8_t *section_bytes,
 						      size_t section_bytes_size, size_t section_position)
 {
-	size_t pattern_resolution_scaling_fix_index = 0;
-	if (!find_pattern(pattern_resolution_scaling_fix,
-			 sizeof(pattern_resolution_scaling_fix) / sizeof(struct ignorable_byte), section_bytes,
-			 section_bytes_size, &pattern_resolution_scaling_fix_index)) {
-		fprintf(stderr, "find_pattern() failed\n");
+	time_t start_time = time(NULL);
+	if ((time_t)-1 == start_time) {
+		perror("time() failed");
 		return false;
+	}
+
+	size_t pattern_resolution_scaling_fix_index = 0;
+	time_t current_time = start_time;
+	while (true) {
+		if (got_sigterm) {
+			fprintf(stderr, "got SIGTERM, exiting\n");
+			return false;
+		}
+
+		if (got_sigchld) {
+			if (ptrace(PTRACE_CONT, context->pid, NULL, NULL) == -1) {
+				perror("ptrace(PTRACE_CONT) failed");
+				return false;
+			}
+			got_sigchld = 0;
+		}
+
+		if (find_pattern(pattern_resolution_scaling_fix,
+				sizeof(pattern_resolution_scaling_fix) / sizeof(struct ignorable_byte), context->f, section_bytes,
+				section_bytes_size, section_position, &pattern_resolution_scaling_fix_index)) {
+			stop_and_wait(context);
+			break;
+		}
+
+		current_time = time(NULL);
+		if ((time_t)-1 == current_time) {
+			perror("time() failed");
+			return false;
+		}
+		if ((current_time - start_time) > context->timeout) {
+			fprintf(stderr, "timeout reached while looking for resolution scaling fix pattern\n");
+			return false;
+		}
 	}
 
 	uint8_t nop_jmp[] = { 0x90, 0x90, 0xeb };
@@ -144,27 +193,32 @@ static bool patch_resolution_scaling_fix_with_section(struct game_patch_context 
 	return true;
 }
 
-static bool patch_resolution_scaling_fix(struct game_patch_context *context)
+static bool patch_resolution_scaling_fix(struct context *context)
 {
-	uint8_t *section_bytes = NULL;
-	size_t section_bytes_size = 0;
-	size_t section_position = 0;
-	if (!extract_section(".text", context->f, &section_bytes, &section_bytes_size, &section_position)) {
-		fprintf(stderr, "extract_section() failed\n");
+	size_t section_position;
+	size_t section_size = 0;
+	if (!find_section_info(".text", context->f, &section_position, &section_size)) {
+		fprintf(stderr, "find_section_info(\".text\", ...) failed\n");
+		return false;
+	}
+
+	uint8_t *section_buffer = calloc(section_size, sizeof(uint8_t));
+	if (!section_buffer) {
+		fprintf(stderr, "calloc() failed\n");
 		return false;
 	}
 
 	bool success =
-		patch_resolution_scaling_fix_with_section(context, section_bytes, section_bytes_size, section_position);
+		patch_resolution_scaling_fix_with_section(context, section_buffer, section_size, section_position);
 
-	free(section_bytes);
+	free(section_buffer);
 
 	return success;
 }
 
-static bool patch_resolution(struct game_patch_context *context)
+static bool patch_resolution(struct context *context, uint32_t screen_width, uint32_t game_width, uint32_t game_height)
 {
-	if (!patch_resolution_default(context)) {
+	if (!patch_resolution_default(context, screen_width, game_width, game_height)) {
 		fprintf(stderr, "patch_resolution_default() failed\n");
 		return false;
 	}
@@ -177,65 +231,35 @@ static bool patch_resolution(struct game_patch_context *context)
 	return true;
 }
 
-static bool set_resolution(pid_t pid, uint32_t screen_width, uint32_t game_width, uint32_t game_height)
+bool main_resolution(struct context *context, int argc, char *argv[])
 {
-	struct game_patch_data game_patch_data = {
-		.screen_width = screen_width,
-		.game_width = game_width,
-		.game_height = game_height,
-	};
-	struct game_patch game_patch = {
-		.game_patch_function = patch_resolution,
-		.game_patch_data = &game_patch_data,
-	};
-	if (!patch(pid, &game_patch)) {
-		fprintf(stderr, "patch() failed\n");
+	if (argc < 3) {
+		fprintf(stderr, "argc must be at least 3\n");
+		return false;
+	}
+
+	uint32_t screen_width = 0;
+	if (!string_to_uint32(argv[0], 10, &screen_width)) {
+		fprintf(stderr, "string_to_uint32_t() failed\n");
+		return false;
+	}
+
+	uint32_t game_width = 0;
+	if (!string_to_uint32(argv[1], 10, &game_width)) {
+		fprintf(stderr, "string_to_uint32_t() failed\n");
+		return false;
+	}
+
+	uint32_t game_height = 0;
+	if (!string_to_uint32(argv[2], 10, &game_height)) {
+		fprintf(stderr, "string_to_uint32_t() failed\n");
+		return false;
+	}
+
+	if (!patch_resolution(context, screen_width, game_width, game_height)) {
+		fprintf(stderr, "patch_resolution() failed\n");
 		return false;
 	}
 
 	return true;
-}
-
-int main(int argc, char *argv[])
-{
-	if (argc < 1) {
-		fprintf(stderr, "argc must be at least 1\n");
-		return EXIT_FAILURE;
-	}
-
-	if (argc != 5) {
-		fprintf(stderr, "usage: %s <pid> <screen-width> <game-width> <game-height>\n", argv[0]);
-		return EXIT_FAILURE;
-	}
-
-	pid_t pid = 0;
-	if (!string_to_pid_t(argv[1], 10, &pid)) {
-		fprintf(stderr, "string_to_pid_t() failed\n");
-		return EXIT_FAILURE;
-	}
-
-	uint32_t screen_width = 0;
-	if (!string_to_uint32_t(argv[2], &screen_width)) {
-		fprintf(stderr, "string_to_uint32_t() failed\n");
-		return EXIT_FAILURE;
-	}
-
-	uint32_t game_width = 0;
-	if (!string_to_uint32_t(argv[3], &game_width)) {
-		fprintf(stderr, "string_to_uint32_t() failed\n");
-		return EXIT_FAILURE;
-	}
-
-	uint32_t game_height = 0;
-	if (!string_to_uint32_t(argv[4], &game_height)) {
-		fprintf(stderr, "string_to_uint32_t() failed\n");
-		return EXIT_FAILURE;
-	}
-
-	if (!set_resolution(pid, screen_width, game_width, game_height)) {
-		fprintf(stderr, "set_resolution() failed\n");
-		return EXIT_FAILURE;
-	}
-
-	return EXIT_SUCCESS;
 }

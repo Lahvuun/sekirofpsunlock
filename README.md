@@ -1,46 +1,63 @@
 # Patch Sekiro under Linux
 Inspired by https://github.com/uberhalit/SekiroFpsUnlockAndMore
 ## Quickstart
-### Building
+Download the latest release, or build it yourself.
+
+### Usage
 ```sh
-git clone https://github.com/Lahvuun/sekirofpsunlock.git
-cd sekirofpsunlock
-make
+./sekirofpsunlock <timeout-seconds> <argument> {<argument>}
 ```
-### Change the framelock from 60 to a different value
-Usage:
-``` sh
-./sekiro-set-fps <pid> <fps>
-```
-For example, to get the pid in a subshell and set framelock to 120:
-``` sh
-./sekiro-set-fps $(pidof sekiro.exe) 120
-```
-### Set a custom resolution
-``` sh
-./sekiro-set-resolution <pid> <screen-width> <game-width> <game-height>
-```
-For example, with a screen (viewport) at 2560x1080 and game running in full screen:
-``` sh
-./sekiro-set-resolution $(pidof sekiro.exe) 2560 2560 1080
-```
-This will only take effect once the game sets its display mode. It can happen in two ways:
-- Automatically, when the game is started.
-- Triggered by the player, when changing resolution or windowing mode.
+It will look for the game and then patch it according to the arguments you
+provide. You can run it before the game starts, or while the game is running.
 
-In the first case, you can patch the game before it first sets the display mode (indeed, this is what SekiroFpsUnlockAndMore does under Windows). To make this easier, I provided a script that will wait until a process called sekiro.exe is present and then execute the patcher you provided to it:
-``` sh
-./wait-and-patch.sh ./sekiro-set-resolution 2560 2560 1080
+`<timeout-seconds>` is an integer value, denoting how long the program can
+wait before failing while:
+- Searching for the game.
+- Searching for a memory pattern.
+
+You should set it to the time it takes from clicking "PLAY" in Steam to the
+game window appearing, plus some extra to be safe. 30 is a reasonable value
+for most, so it will be used in the examples. Don't set it to absurdly high
+values (at most 100 should be enough, if your game takes longer than that
+to start and unpack, you probably have some issue with your PC), since the
+program busy-loops looking for the process and memory patterns. This
+effectively occupies a whole CPU thread while it is running.
+#### Set max FPS
+```sh
+./sekirofpsunlock <timeout-seconds> set-fps <max-fps>
 ```
-Start the script before you run the game. Once it's running, the script will run the patcher and exit.
+For example:
+```sh
+./sekirofpsunlock 30 set-fps 144
+```
+#### Set the resolution
+```sh
+./sekirofpsunlock <timeout-seconds> set-resolution <display-width> <game-width> <game-height>
+```
+For example:
+```sh
+./sekirofpsunlock 30 set-resolution 2560 2560 1080
+```
+`<display-width>` refers to the viewport that the game will run in, windowed
+or not. It doesn't necessarily have to a display, can also be a gamescope
+instance, in that case it should be equal to gamescope's `--output-width`
+argument.
 
-If you want to go with the second option, simply change to a different resolution and then back, or switch to windowed and back to full screen.
+If you patch the resolution while the game is running (instead of starting
+the program before starting the game), the resolution patch will not apply
+immediately, you'd have to force a display mode change. This can be done by
+switching the resolution or changing the windowing mode in the game settings.
+You can then simply switch back and the custom resolution will persist.
 
-Note: you will only be able to set the resolution once, subsequent attempts will fail. As things are currently, you'd need to restart the game to try a different resolution. It's possible to have it working, but I don't see why anyone would want to set the resolution more than once per play session, so I didn't bother implementing it.
-#### UI issues
-##### 21:9
+Note: you will only be able to set the resolution once, subsequent attempts
+will fail. As things are currently, you'd need to restart the game to try a
+different resolution. It's possible to have it working, but I don't see why
+anyone would want to set the resolution more than once per play session, so
+I didn't bother implementing it.
+##### UI issues
+###### 21:9
 ![UI elements not matching the resolution](https://staticdelivery.nexusmods.com/mods/2763/images/240/240-1606870250-478083709.png)
-There's a reason the game forces 16:9 aspect ratio: the UI elements are not designed for other aspect ratios. For 21:9, you can use [Ultrawide UI Fixes](https://www.nexusmods.com/sekiro/mods/240). The install steps under Linux are quite simple:
+There's a reason the game forces 16:9 aspect ratio: the UI elements are not designed for other aspect ratios! For 21:9, you can use [Ultrawide UI Fixes](https://www.nexusmods.com/sekiro/mods/240). The install steps under Linux are quite simple:
 - Install [Sekiro Mod Engine](https://www.nexusmods.com/sekiro/mods/6). Download, unpack and put the two files (`dinput8.dll` and `modengine.ini`) to Sekiro's game folder.
 - Download [Aspect Ratio 21 x 9 main file](https://www.nexusmods.com/sekiro/mods/240?tab=files), move menu folder into the folder named `mods` in Sekiro's game folder.
 
@@ -78,5 +95,31 @@ mods/menu/05_900_logo_fromsoft.gfx
 ```
 The last step is actually activating the mod loader. It is loaded through `dinput8.dll`, but by default Wine will use its own version, not the one in the game folder. To get Wine to actually use it, you need to set a DLL override. With Steam, this is easy to do: set the launch options to `WINEDLLOVERRIDES=dinput8=n,b %command%`.
 ![DLL override example](override.png)
-##### 16:10
+###### 16:10
 Unfortunately, there is no mod that fixes the UI for 16:10, so Steam Deck users are out of luck. The game is still perfectly playable with patched resolution, of course, but the UI will be a little bit off.
+#### Combined
+```sh
+./sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144
+```
+The order can also be opposite:
+```sh
+./sekirofpsunlock 30 set-fps 144 set-resolution 2560 2560 1080
+```
+But it's recommended that you keep `set-resolution` first.
+#### Starting from Steam
+You can optionally have this patcher run when you click "PLAY" in Steam. To
+accomplish that, set the game's launch options like so:
+```
+/home/user/sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144 & %command%
+```
+Make sure to replace `/home/user/sekirofpsunlock` with the full path to the
+program. Also make sure there is a single ampersand (`&`) between the program
+call and `%command%`. Omitting it will cause the patcher to timeout and the
+game won't run. Having two (`&&`) will cause the patcher to timeout and the
+game will run unpatched!
+## Building
+```sh
+meson build -Dbuildtype=release
+ninja -C build
+```
+The resulting `sekirofpsunlock` file will be in the `build` directory.

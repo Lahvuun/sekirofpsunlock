@@ -1,63 +1,77 @@
-#include <assert.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <limits.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ptrace.h>
-#include <sys/wait.h>
+#define _POSIX_C_SOURCE 1
 
 #include "common.h"
 
-#define STRING_BUFFER_SIZE 1024
+#include <assert.h>
+#include <errno.h>
+#include <limits.h>
+#include <inttypes.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
 
-static char string_buffer[STRING_BUFFER_SIZE] = "";
+#define IMAGE_BASE 0x140000000
 
-static bool fill_proc_path(char *destination, size_t destination_length, long pid, char *rest)
+struct dos_header {
+	uint16_t magic;
+	uint8_t ignored[58];
+	int32_t coff_header_offset;
+};
+
+struct coff_header {
+	uint32_t signature;
+	uint16_t machine;
+	uint16_t number_of_sections;
+	uint32_t time_date_stamp;
+	uint32_t pointer_to_symbol_table;
+	uint32_t number_of_symbols;
+	uint16_t size_of_optional_header;
+	uint16_t characteristics;
+};
+
+struct coff_optional_header {
+	uint16_t magic;
+	uint8_t ignored[104];
+	uint16_t number_of_rva_and_sizes;
+};
+
+struct section_header {
+	char name[8];
+	uint32_t virtual_size;
+	uint32_t virtual_address;
+	uint8_t ignored[24];
+};
+
+static bool size_t_to_long(size_t value, long *value_out)
 {
-	int written = snprintf(destination, destination_length, "/proc/%ld/%s", pid, rest);
-	if (written < 0) {
-		fprintf(stderr, "snprintf() failed\n");
+	if (value > LONG_MAX) {
+		fprintf(stderr, "size_t value is larger than LONG_MAX\n");
 		return false;
 	}
 
-	static_assert(sizeof(size_t) >= sizeof(int), "size_t must fit int");
-	size_t written_size_t = written;
-	if (written_size_t > destination_length) {
-		fprintf(stderr, "snprintf() failed: buffer not large enough to fit the resulting path\n");
-		return false;
-	}
+	*value_out = value;
 
 	return true;
 }
 
-static bool patch_stopped_process(pid_t pid, struct game_patch *game_patch)
+static bool string_to_uintmax(const char *s, int base, uintmax_t *value_out)
 {
-	if (!fill_proc_path(string_buffer, STRING_BUFFER_SIZE, pid, "mem")) {
-		fprintf(stderr, "fill_proc_path() failed\n");
+	int errno_stored = errno;
+	errno = 0;
+	char *endptr = NULL;
+	*value_out = strtoumax(s, &endptr, base);
+	if (errno) {
+		perror("strtoumax() failed");
+		return false;
+	}
+	errno = errno_stored;
+	if (endptr == s) {
+		fprintf(stderr, "strtoumax() failed, no digits were read\n");
 		return false;
 	}
 
-	FILE *f = fopen(string_buffer, "r+");
-	if (!f) {
-		perror("fopen() failed");
-		return false;
-	}
-
-	struct game_patch_context context = {
-		.f = f,
-		.game_patch_data = game_patch->game_patch_data,
-	};
-	bool success = game_patch->game_patch_function(&context);
-
-	if (fclose(f) == EOF) {
-		perror("fclose() failed");
-		return false;
-	}
-
-	return success;
+	return true;
 }
 
 static bool same_pattern(const struct ignorable_byte *pattern_bytes, const size_t pattern_bytes_length, const uint8_t *bytes, const size_t bytes_length)
@@ -72,86 +86,120 @@ static bool same_pattern(const struct ignorable_byte *pattern_bytes, const size_
 	return true;
 }
 
-static bool string_to_long(char *s, int base, long *n_out)
+bool string_to_uint32(const char *s, int base, uint32_t *value_out)
 {
-	int errno_stored = errno;
-	errno = 0;
-	char *endptr = NULL;
-	*n_out = strtol(s, &endptr, base);
-	if (errno) {
-		perror("strtol() failed");
-		return false;
-	}
-	if (endptr == s) {
-		fprintf(stderr, "strtol() failed, no digits were read.\n");
-		return false;
-	}
-	errno = errno_stored;
+       uintmax_t large = 0;
+       if (!string_to_uintmax(s, base, &large)) {
+               fprintf(stderr, "string_to_uintmax() failed\n");
+               return false;
+       }
 
-	return true;
+       if (large > UINT32_MAX) {
+               fprintf(stderr, "value does not fit into uint32_t\n");
+               return false;
+       }
+
+       *value_out = large;
+
+       return true;
 }
 
-static bool size_t_to_long(size_t value, long *value_out)
+bool find_section_info(const char *name, FILE *f, size_t *position_out, size_t *size_out)
 {
-	if (value > LONG_MAX) {
-		fprintf(stderr, "size_t value is larger than LONG_MAX\n");
+	assert(strlen(name) < 9);
+
+	struct dos_header dos_header = { 0 };
+	if (!seek_and_read_bytes((uint8_t *)&dos_header, sizeof(dos_header), IMAGE_BASE, f)) {
+		fprintf(stderr, "failed to read dos header\n");
 		return false;
 	}
 
-	*value_out = value;
+	if (dos_header.magic != 0x5a4d) {
+		fprintf(stderr, "dos magic does not match\n");
+		return false;
+	}
 
-	return true;
+	struct coff_header coff_header = { 0 };
+	if (!seek_and_read_bytes((uint8_t *)&coff_header, sizeof(coff_header),
+				 IMAGE_BASE + dos_header.coff_header_offset, f)) {
+		fprintf(stderr, "failed to read coff header\n");
+		return false;
+	}
+
+	if (coff_header.signature != 0x4550) {
+		fprintf(stderr, "pe signature does not match\n");
+		return false;
+	}
+
+	struct coff_optional_header coff_optional_header = { 0 };
+	if (!seek_and_read_bytes((uint8_t *)&coff_optional_header, sizeof(coff_optional_header),
+				 IMAGE_BASE + dos_header.coff_header_offset + sizeof(coff_header), f)) {
+		fprintf(stderr, "failed to read optional header\n");
+		return false;
+	}
+
+	if (coff_optional_header.magic != 0x20b) {
+		fprintf(stderr, "pe32+ magic does not match\n");
+		return false;
+	}
+
+	struct section_header section_header = { 0 };
+	for (uint16_t i = 0; i < coff_header.number_of_sections; ++i) {
+		if (!seek_and_read_bytes((uint8_t *)&section_header, sizeof(section_header),
+					 IMAGE_BASE + dos_header.coff_header_offset + sizeof(coff_header) +
+						 coff_header.size_of_optional_header + i * sizeof(section_header),
+					 f)) {
+			fprintf(stderr, "failed to read section header\n");
+			return false;
+		}
+
+		if (!strncmp(name, section_header.name, sizeof(section_header.name))) {
+			*size_out = section_header.virtual_size;
+			*position_out = IMAGE_BASE + section_header.virtual_address;
+
+			return true;
+		}
+	}
+	fprintf(stderr, "couldn't find section with name %s\n", name);
+
+	return false;
 }
 
-bool string_to_uintmax_t(const char *s, int base, uintmax_t *n_out)
+bool find_pattern(const struct ignorable_byte *pattern_bytes, const size_t pattern_bytes_length, FILE *f, uint8_t *buffer, size_t buffer_size, size_t section_position, size_t *index_out)
 {
-	int errno_stored = errno;
-	errno = 0;
-	char *endptr = NULL;
-	*n_out = strtoumax(s, &endptr, base);
-	if (errno) {
-		perror("strtoumax() failed");
-		return false;
-	}
-	errno = errno_stored;
-	if (endptr == s) {
-		fprintf(stderr, "strtoumax() failed, no digits were read\n");
+	if (!seek_and_read_bytes(buffer, buffer_size, section_position, f)) {
+		fprintf(stderr, "seek_and_read_bytes() failed\n");
 		return false;
 	}
 
-	return true;
-}
-
-bool string_to_pid_t(char *s, int base, pid_t *pid_out)
-{
-	long pid_long = 0;
-	if (!string_to_long(s, base, &pid_long)) {
-		fprintf(stderr, "string_to_long() failed\n");
-		return false;
-	}
-
-	static_assert(sizeof(int32_t) == sizeof(pid_t), "pid_t must take the same amount of bytes as int32_t");
-	if (pid_long > INT32_MAX) {
-		fprintf(stderr, "pid is too big for pid_t\n");
-		return false;
-	}
-
-	*pid_out = pid_long;
-
-	return true;
-}
-
-bool find_pattern(const struct ignorable_byte *pattern_bytes, const size_t pattern_bytes_length, const uint8_t *bytes,
-		  const size_t bytes_length, size_t *position_out)
-{
-	for (size_t i = 0; i + pattern_bytes_length < bytes_length; ++i) {
-		if (same_pattern(pattern_bytes, pattern_bytes_length, bytes + i, bytes_length - i)) {
-			*position_out = i;
+	for (size_t i = 0; i + pattern_bytes_length < buffer_size; ++i) {
+		if (same_pattern(pattern_bytes, pattern_bytes_length, buffer + i, buffer_size - i)) {
+			*index_out = i;
 			return true;
 		}
 	}
 
 	return false;
+}
+
+bool stop_and_wait(struct context *context)
+{
+	if (kill(context->pid, SIGSTOP) == -1) {
+		perror("kill() failed");
+		return false;
+	}
+
+	static_assert(!WIFSTOPPED(0), "WIFSTOPPED triggered on 0");
+	int wstatus = 0;
+	while (!WIFSTOPPED(wstatus)) {
+		pid_t pid_waited = waitpid(context->pid, &wstatus, 0);
+		if (pid_waited != context->pid) {
+			perror("waitpid() failed");
+			return false;
+		}
+	}
+
+	return true;
 }
 
 bool seek_and_read_bytes(uint8_t *destination, size_t destination_length, size_t position, FILE *f)
@@ -204,30 +252,4 @@ bool seek_and_write_bytes(uint8_t *source, size_t source_length, size_t position
 	}
 
 	return true;
-}
-
-bool patch(pid_t pid, struct game_patch *game_patch)
-{
-	if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) == -1) {
-		fprintf(stderr, "ptrace(PTRACE_ATTACH, ...) failed\n");
-		return false;
-	}
-
-	int wstatus = 0;
-	while (!WIFSTOPPED(wstatus)) {
-		pid_t waited_pid = waitpid(pid, &wstatus, 0);
-		if (waited_pid != pid) {
-			perror("waitpid() failed\n");
-			return false;
-		}
-	}
-
-	bool success = patch_stopped_process(pid, game_patch);
-
-	if (ptrace(PTRACE_DETACH, pid, NULL, NULL) == -1) {
-		fprintf(stderr, "ptrace(PTRACE_DETACH, ...) failed\n");
-		return false;
-	}
-
-	return success;
 }

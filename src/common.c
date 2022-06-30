@@ -1,17 +1,24 @@
+#define _POSIX_C_SOURCE 1
+
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 
 #include "common.h"
 
-#define STRING_BUFFER_SIZE 1024
+struct extracted_section {
+	uint8_t *bytes;
+	size_t bytes_size;
+};
 
 static char string_buffer[STRING_BUFFER_SIZE] = "";
 
@@ -33,6 +40,128 @@ static bool fill_proc_path(char *destination, size_t destination_length, long pi
 	return true;
 }
 
+static bool wait_for_data_change_with_section_section(pid_t pid, FILE *f, struct extracted_section *section, struct extracted_section *section_new, size_t position)
+{
+	assert(section->bytes_size == section_new->bytes_size);
+
+	time_t start_time_seconds = time(NULL);
+	if ((time_t)-1 == start_time_seconds) {
+		perror("time() failed");
+		return false;
+	}
+
+	if (ptrace(PTRACE_CONT, pid, NULL, NULL) == -1) {
+		perror("ptrace(PTRACE_CONT, ...) failed\n");
+		return false;
+	}
+
+	time_t current_time_seconds = time(NULL);
+	if ((time_t)-1 == current_time_seconds) {
+		perror("time() failed\n");
+		return false;
+	}
+
+	size_t i = 0;
+	while (current_time_seconds - start_time_seconds < 60) {
+		fprintf(stderr, "iteration %zu\n", i);
+		++i;
+
+		if (!seek_and_read_bytes(section_new->bytes, section_new->bytes_size, position, f)) {
+			fprintf(stderr, "seek_and_read_bytes() failed\n");
+			return false;
+		}
+
+		for (size_t i = 0; i < section->bytes_size; ++i) {
+			if (section->bytes[i] != section_new->bytes[i]) {
+				return true;
+			}
+		}
+
+		current_time_seconds = time(NULL);
+		if ((time_t)-1 == current_time_seconds) {
+			perror("time() failed\n");
+			return false;
+		}
+	}
+
+	fprintf(stderr, "data hasn't changed in 60 seconds\n");
+
+	return false;
+}
+
+static bool wait_for_data_change_with_section(pid_t pid, FILE *f, struct extracted_section *section, size_t position)
+{
+	uint8_t *bytes = calloc(section->bytes_size, sizeof(uint8_t));
+	if (!bytes) {
+		fprintf(stderr, "calloc() failed\n");
+		return false;
+	}
+
+	memcpy(bytes, section->bytes, section->bytes_size);
+
+	struct extracted_section section_new = {
+		.bytes = bytes,
+		.bytes_size = section->bytes_size,
+	};
+
+	bool success = wait_for_data_change_with_section_section(pid, f, section, &section_new, position);
+
+	free(bytes);
+
+	return success;
+}
+
+static bool wait_for_data_change(pid_t pid, FILE *f)
+{
+	uint8_t *data_current = NULL;
+	size_t data_current_size = 0;
+	size_t position = 0;
+	if (!extract_section(".data", f, &data_current, &data_current_size, &position)) {
+		fprintf(stderr, "extract_section(\".data\", ...) failed\n");
+		return false;
+	}
+
+	struct extracted_section section = {
+		.bytes = data_current,
+		.bytes_size = data_current_size,
+	};
+
+	bool success = wait_for_data_change_with_section(pid, f, &section, position);
+
+	free(data_current);
+
+	return success;
+}
+
+static bool patch_stopped_process_with_file(pid_t pid, struct game_patch *game_patch, FILE *f)
+{
+	if (!wait_for_data_change(pid, f)) {
+		fprintf(stderr, "wait_for_data_change() failed\n");
+		return false;
+	}
+
+	if (kill(pid, SIGSTOP) == -1) {
+		perror("kill() failed\n");
+		return false;
+	}
+
+	int wstatus = 0;
+	while (!WIFSTOPPED(wstatus)) {
+		pid_t waited_pid = waitpid(pid, &wstatus, 0);
+		if (waited_pid != pid) {
+			perror("waitpid() failed\n");
+			return false;
+		}
+	}
+
+	struct game_patch_context context = {
+		.f = f,
+		.game_patch_data = game_patch->game_patch_data,
+	};
+
+	return game_patch->game_patch_function(&context);
+}
+
 static bool patch_stopped_process(pid_t pid, struct game_patch *game_patch)
 {
 	if (!fill_proc_path(string_buffer, STRING_BUFFER_SIZE, pid, "mem")) {
@@ -46,11 +175,7 @@ static bool patch_stopped_process(pid_t pid, struct game_patch *game_patch)
 		return false;
 	}
 
-	struct game_patch_context context = {
-		.f = f,
-		.game_patch_data = game_patch->game_patch_data,
-	};
-	bool success = game_patch->game_patch_function(&context);
+	bool success = patch_stopped_process_with_file(pid, game_patch, f);
 
 	if (fclose(f) == EOF) {
 		perror("fclose() failed");
@@ -58,152 +183,6 @@ static bool patch_stopped_process(pid_t pid, struct game_patch *game_patch)
 	}
 
 	return success;
-}
-
-static bool same_pattern(const struct ignorable_byte *pattern_bytes, const size_t pattern_bytes_length, const uint8_t *bytes, const size_t bytes_length)
-{
-	for (size_t i = 0; i < pattern_bytes_length && i < bytes_length; ++i) {
-		const struct ignorable_byte ignorable_byte = pattern_bytes[i];
-		if (!ignorable_byte.is_ignored && bytes[i] != ignorable_byte.value) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-static bool string_to_long(char *s, int base, long *n_out)
-{
-	int errno_stored = errno;
-	errno = 0;
-	char *endptr = NULL;
-	*n_out = strtol(s, &endptr, base);
-	if (errno) {
-		perror("strtol() failed");
-		return false;
-	}
-	if (endptr == s) {
-		fprintf(stderr, "strtol() failed, no digits were read.\n");
-		return false;
-	}
-	errno = errno_stored;
-
-	return true;
-}
-
-static bool size_t_to_long(size_t value, long *value_out)
-{
-	if (value > LONG_MAX) {
-		fprintf(stderr, "size_t value is larger than LONG_MAX\n");
-		return false;
-	}
-
-	*value_out = value;
-
-	return true;
-}
-
-bool string_to_uintmax_t(const char *s, int base, uintmax_t *n_out)
-{
-	int errno_stored = errno;
-	errno = 0;
-	char *endptr = NULL;
-	*n_out = strtoumax(s, &endptr, base);
-	if (errno) {
-		perror("strtoumax() failed");
-		return false;
-	}
-	errno = errno_stored;
-	if (endptr == s) {
-		fprintf(stderr, "strtoumax() failed, no digits were read\n");
-		return false;
-	}
-
-	return true;
-}
-
-bool string_to_pid_t(char *s, int base, pid_t *pid_out)
-{
-	long pid_long = 0;
-	if (!string_to_long(s, base, &pid_long)) {
-		fprintf(stderr, "string_to_long() failed\n");
-		return false;
-	}
-
-	static_assert(sizeof(int32_t) == sizeof(pid_t), "pid_t must take the same amount of bytes as int32_t");
-	if (pid_long > INT32_MAX) {
-		fprintf(stderr, "pid is too big for pid_t\n");
-		return false;
-	}
-
-	*pid_out = pid_long;
-
-	return true;
-}
-
-bool find_pattern(const struct ignorable_byte *pattern_bytes, const size_t pattern_bytes_length, const uint8_t *bytes,
-		  const size_t bytes_length, size_t *position_out)
-{
-	for (size_t i = 0; i + pattern_bytes_length < bytes_length; ++i) {
-		if (same_pattern(pattern_bytes, pattern_bytes_length, bytes + i, bytes_length - i)) {
-			*position_out = i;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-bool seek_and_read_bytes(uint8_t *destination, size_t destination_length, size_t position, FILE *f)
-{
-	long position_long = 0;
-	if (!size_t_to_long(position, &position_long)) {
-		fprintf(stderr, "size_t_to_long() failed\n");
-		return false;
-	}
-
-	if (fseek(f, position_long, SEEK_SET) == -1) {
-		perror("fseek() failed");
-		return false;
-	}
-
-	size_t read = fread(destination, sizeof(uint8_t), destination_length, f);
-	if (read < destination_length) {
-		if (feof(f)) {
-			fprintf(stderr, "fread() reached end-of-file unexpectedly\n");
-		} else {
-			fprintf(stderr, "fread() failed\n");
-		}
-		return false;
-	}
-
-	return true;
-}
-
-bool seek_and_write_bytes(uint8_t *source, size_t source_length, size_t position, FILE *f) {
-	long position_long = 0;
-	if (!size_t_to_long(position, &position_long)) {
-		fprintf(stderr, "size_t_to_long() failed\n");
-		return false;
-	}
-
-	if (fseek(f, position_long, SEEK_SET) == -1) {
-		perror("fseek() failed");
-		return false;
-	}
-
-	size_t written = fwrite(source, sizeof(uint8_t), source_length, f);
-	if (written < source_length) {
-		if (feof(f)) {
-			fprintf(stderr, "fwrite() reached end-of-file unexpectedly\n");
-		} else {
-			fprintf(stderr, "fwrite() failed\n");
-		}
-		fprintf(stderr, "it's possible that the process is corrupted now, you should restart the game\n");
-		return false;
-	}
-
-	return true;
 }
 
 bool patch(pid_t pid, struct game_patch *game_patch)
@@ -231,3 +210,4 @@ bool patch(pid_t pid, struct game_patch *game_patch)
 
 	return success;
 }
+

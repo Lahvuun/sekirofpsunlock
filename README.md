@@ -1,6 +1,36 @@
 # Patch Sekiro under Linux
 Inspired by https://github.com/uberhalit/SekiroFpsUnlockAndMore
 ## Quickstart
+Download the latest release, or build it yourself.
+
+The script `wait-and-patch.sh` will wait for `sekiro.exe` to spawn and run a patcher with provided options.
+
+The basic steps to patch the game are:
+- Run `./wait-and-patch.sh <patcher> <arguments>` in your terminal. Don't close it.
+- Start the game from Steam.
+- (Optionally) once you're in the main menu, you can close the terminal. 
+
+To set the framelock to 120, the above command would be:
+``` sh
+./wait-and-patch.sh ./sekiro-set-fps 120
+```
+To set the resolution to 2560x1080, the above command would be:
+``` sh
+./wait-and-patch.sh ./sekiro-set-resolution 2560 2560 1080
+```
+You can also combine them like so:
+``` sh
+./wait-and-patch.sh ./sekiro-set-resolution 2560 2560 1080 && ./sekiro-set-fps $(pgrep sekiro.exe) 120
+```
+If you want, you can have Steam run the script for you with launch options, like so:
+``` sh
+./wait-and-patch.sh ./sekiro-set-resolution 1280 800 800 & %command%
+```
+But you need to replace `./wait-and-patch.sh` and `./sekiro-set-resolution` with absolute paths. I have mine in `/home/lahvuun`, so for me the command becomes:
+``` sh
+/home/lahvuun/wait-and-patch.sh /home/lahvuun/sekiro-set-resolution 1280 800 800 & %command%
+```
+## Details
 ### Building
 ```sh
 git clone https://github.com/Lahvuun/sekirofpsunlock.git
@@ -14,7 +44,7 @@ Usage:
 ```
 For example, to get the pid in a subshell and set framelock to 120:
 ``` sh
-./sekiro-set-fps $(pidof sekiro.exe) 120
+./sekiro-set-fps $(pgrep sekiro.exe) 120
 ```
 ### Set a custom resolution
 ``` sh
@@ -22,7 +52,7 @@ For example, to get the pid in a subshell and set framelock to 120:
 ```
 For example, with a screen (viewport) at 2560x1080 and game running in full screen:
 ``` sh
-./sekiro-set-resolution $(pidof sekiro.exe) 2560 2560 1080
+./sekiro-set-resolution $(pgrep sekiro.exe) 2560 2560 1080
 ```
 This will only take effect once the game sets its display mode. It can happen in two ways:
 - Automatically, when the game is started.

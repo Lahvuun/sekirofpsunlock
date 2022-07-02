@@ -95,7 +95,7 @@ static bool patch_resolution_default_with_section(struct context *context, uint3
 			return false;
 		}
 		if ((current_time - start_time) > context->timeout) {
-			fprintf(stderr, "timeout reached while looking for speed fix pattern\n");
+			fprintf(stderr, "timeout reached while looking for resolution default pattern\n");
 			return false;
 		}
 	}
@@ -178,7 +178,7 @@ static bool patch_resolution_scaling_fix_with_section(struct context *context, u
 			return false;
 		}
 		if ((current_time - start_time) > context->timeout) {
-			fprintf(stderr, "timeout reached while looking for speed fix pattern\n");
+			fprintf(stderr, "timeout reached while looking for resolution scaling fix pattern\n");
 			return false;
 		}
 	}

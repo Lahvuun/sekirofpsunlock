@@ -123,7 +123,7 @@ static bool patch_framelock(struct context *context, float fps, uint8_t *section
 			return false;
 		}
 		if ((current_time - start_time) > context->timeout) {
-			fprintf(stderr, "timeout reached while looking for speed fix pattern\n");
+			fprintf(stderr, "timeout reached while looking for framelock pattern\n");
 			return false;
 		}
 	}

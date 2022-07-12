@@ -60,9 +60,11 @@ static enum find_sekiro_result is_process_sekiro(FILE *f, char *buffer, size_t b
 	assert(buffer_size <= INT_MAX);
 
 	if (!fgets(buffer, buffer_size, f)) {
+		// Can happen if the file has been opened but the process is already dead by the time fgets is called.
+		// These reads from /proc should never really fail for any other reason, so it's probably fine to treat it as a failure to find the process.
+		// Even if it is a real error (in which case something is seriously wrong), the timeout should take care of it.
 		if (ferror(f)) {
-			fprintf(stderr, "fgets() failed\n");
-			return ERROR;
+			return NOT_FOUND;
 		}
 		if (feof(f)) {
 			fprintf(stderr, "got unexpected EOF\n");

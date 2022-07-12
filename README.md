@@ -21,6 +21,11 @@ accomplish that, set the game's launch options like so:
 ```
 /home/user/sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144 & %command%
 ```
+Make sure to replace `/home/user/sekirofpsunlock` with the full path to the
+program. Also make sure there is a single ampersand (`&`) between the program
+call and `%command%`. Omitting it will cause the patcher to timeout and the
+game won't run. Having two (`&&`) will cause the patcher to timeout and the
+game will run unpatched!
 ### Note
 The patcher may leave the game frozen. You'll notice because Steam will show you as playing, but the game won't start no matter how long you wait. You can verify that this happened by running:
 ``` sh

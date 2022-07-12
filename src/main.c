@@ -1,3 +1,5 @@
+#define _POSIX_SOURCE 1
+
 #include "common.h"
 #include "signals.h"
 #include "sekiro.h"
@@ -131,6 +133,11 @@ static bool patch(time_t timeout, char **arguments, int arguments_size)
 	}
 
 	bool success = patch_attached_process(pid, timeout, arguments, arguments_size);
+
+	if (kill(pid, SIGCONT) == -1) {
+		perror("kill() failed");
+		success = false;
+	}
 
 	if (ptrace(PTRACE_DETACH, pid, NULL, NULL) == -1) {
 		perror("ptrace(PTRACE_DETACH, ...)");

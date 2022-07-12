@@ -146,7 +146,7 @@ The order can also be opposite:
 But it's recommended that you keep `set-resolution` first.
 ## Building
 ```sh
-meson build -Dbuildtype=release
+meson build -Db_ndebug=if-release -Dbuildtype=release
 ninja -C build
 ```
 The resulting `sekirofpsunlock` file will be in the `build` directory.

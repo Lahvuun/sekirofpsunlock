@@ -144,17 +144,6 @@ The order can also be opposite:
 ./sekirofpsunlock 30 set-fps 144 set-resolution 2560 2560 1080
 ```
 But it's recommended that you keep `set-resolution` first.
-#### Starting from Steam
-You can optionally have this patcher run when you click "PLAY" in Steam. To
-accomplish that, set the game's launch options like so:
-```
-/home/user/sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144 & %command%
-```
-Make sure to replace `/home/user/sekirofpsunlock` with the full path to the
-program. Also make sure there is a single ampersand (`&`) between the program
-call and `%command%`. Omitting it will cause the patcher to timeout and the
-game won't run. Having two (`&&`) will cause the patcher to timeout and the
-game will run unpatched!
 ## Building
 ```sh
 meson build -Dbuildtype=release

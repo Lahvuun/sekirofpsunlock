@@ -57,6 +57,7 @@ static bool string_to_pid(char *s, int base, pid_t *pid_out)
 
 static enum find_sekiro_result is_process_sekiro(FILE *f, char *buffer, size_t buffer_size)
 {
+	// fgets takes int, so make sure the implicit cast provides the correct value.
 	assert(buffer_size <= INT_MAX);
 
 	if (!fgets(buffer, buffer_size, f)) {

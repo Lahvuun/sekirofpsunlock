@@ -32,7 +32,7 @@ State:  T (stopped)
 ```
 In that case, you can unfreeze the game with:
 ``` sh
-kill -SIGCONT $(pgrep sekiro.exe)`
+kill -SIGCONT $(pgrep sekiro.exe)
 ```
 ## Slowstart
 This is a section that goes into more detail, if you have any issues it's possible that reading it may help with finding the solution. If not, you can open an issue and I may be able to help you.

@@ -2,7 +2,40 @@
 Inspired by https://github.com/uberhalit/SekiroFpsUnlockAndMore
 ## Quickstart
 Download the latest release, or build it yourself.
-
+### Usage
+#### Set the maximum FPS
+```sh
+./sekirofpsunlock 30 set-fps 144
+```
+#### Set the resolution
+```sh
+./sekirofpsunlock 30 set-resolution 2560 2560 1080
+```
+#### Set resolution and maximum FPS in a single command
+```sh
+./sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144
+```
+#### Starting from Steam
+You can optionally have this patcher run when you click "PLAY" in Steam. To
+accomplish that, set the game's launch options like so:
+```
+/home/user/sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144 & %command%
+```
+### Note
+The patcher may leave the game frozen. You'll notice because Steam will show you as playing, but the game won't start no matter how long you wait. You can verify that this happened by running:
+``` sh
+grep State /proc/$(pgrep sekiro.exe)/status
+```
+If the game is frozen, the output will be:
+```
+State:  T (stopped)
+```
+In that case, you can unfreeze the game with:
+``` sh
+kill -SIGCONT $(pgrep sekiro.exe)`
+```
+## Slowstart
+This is a section that goes into more detail, if you have any issues it's possible that reading it may help with finding the solution. If not, you can open an issue and I may be able to help you.
 ### Usage
 ```sh
 ./sekirofpsunlock <timeout-seconds> <argument> {<argument>}

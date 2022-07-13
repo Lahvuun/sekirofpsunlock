@@ -27,6 +27,11 @@ call and `%command%`. Omitting it will cause the patcher to timeout and the
 game won't run. Having two (`&&`) will cause the patcher to timeout and the
 game will probably not run!
 ### Notes
+#### ptrace(PTRACE_ATTACH, ...): Operation not permitted
+This error means that you do not have the permission to ptrace (control) the game process. Generally this happens because of your hardened security settings. These can be set by the distribution or you may have set them yourself. Either way, you have the following options:
+- Run the patcher with sudo. Works if ran from the terminal, probably doesn't if running from Steam.
+- Give the patcher the capability to use ptrace. This will work with autostart from Steam. Do it with `sudo setcap CAP_SYS_PTRACE=+eip sekirofpsunlock`. Credit goes to kunver400, who mentioned this in the [issue #4](https://github.com/Lahvuun/sekirofpsunlock/issues/4).
+- Relax your security settings.
 #### Game frozen
 The patcher may leave the game frozen. If you're starting the patcher from Steam or before the game starts, you'll notice because Steam will show you as playing, but the game won't start no matter how long you wait. You can verify that this happened by running:
 ``` sh

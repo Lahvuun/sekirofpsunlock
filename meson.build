@@ -1,4 +1,4 @@
-project('sekirofpsunlock', 'c', default_options : ['c_std=c17'], version : '0.2.0')
+project('sekirofpsunlock', 'c', default_options : ['c_std=c17'], version : '0.2.2')
 
 c_args = ['-Wall', '-Wextra', '-Wpedantic']
 

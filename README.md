@@ -16,6 +16,8 @@ Download the latest release, or build it yourself.
 ./sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144
 ```
 #### Starting from Steam
+Note: before running the patcher from Steam, you should run it from the terminal once to make sure that the patcher works without any errors.
+
 You can optionally have this patcher run when you click "PLAY" in Steam. To
 accomplish that, set the game's launch options like so:
 ```

@@ -26,8 +26,9 @@ program. Also make sure there is a single ampersand (`&`) between the program
 call and `%command%`. Omitting it will cause the patcher to timeout and the
 game won't run. Having two (`&&`) will cause the patcher to timeout and the
 game will probably not run!
-### Note
-The patcher may leave the game frozen. You'll notice because Steam will show you as playing, but the game won't start no matter how long you wait. You can verify that this happened by running:
+### Notes
+#### Game frozen
+The patcher may leave the game frozen. If you're starting the patcher from Steam or before the game starts, you'll notice because Steam will show you as playing, but the game won't start no matter how long you wait. You can verify that this happened by running:
 ``` sh
 grep State /proc/$(pgrep sekiro.exe)/status
 ```
@@ -39,6 +40,9 @@ In that case, you can unfreeze the game with:
 ``` sh
 kill -SIGCONT $(pgrep sekiro.exe)
 ```
+I'm not quite sure why this happens. Detaching from the process should unfreeze it, but sometimes it does not.
+#### set-fps succeeds, but the max FPS does not change
+This means that something else is limiting the FPS. You can probably solve it by grabbing `dxvk.conf` from the release tarball or the `contrib` directory in this repository and dropping it into the game's folder. You will need to restart the game for the changes to take effect.
 ## Slowstart
 This is a section that goes into more detail, if you have any issues it's possible that reading it may help with finding the solution. If not, you can open an issue and I may be able to help you.
 ### Usage

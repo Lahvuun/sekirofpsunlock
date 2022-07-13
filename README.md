@@ -44,7 +44,7 @@ I'm not quite sure why this happens. Detaching from the process should unfreeze 
 #### set-fps succeeds, but the max FPS does not change
 This means that something else is limiting the FPS. You can probably solve it by grabbing `dxvk.conf` from the release tarball or the `contrib` directory in this repository and dropping it into the game's folder. You will need to restart the game for the changes to take effect.
 ## Slowstart
-This is a section that goes into more detail, if you have any issues it's possible that reading it may help with finding the solution. If not, you can open an issue and I may be able to help you.
+This is the old quickstart, it goes into more detail. If you have any issues it's possible that reading this section may help with finding the solution. If not, you can open an issue and I may be able to help you.
 ### Usage
 ```sh
 ./sekirofpsunlock <timeout-seconds> <argument> {<argument>}

@@ -106,7 +106,8 @@ bool string_to_uint32(const char *s, int base, uint32_t *value_out)
 
 bool find_section_info(const char *name, FILE *f, size_t *position_out, size_t *size_out)
 {
-	assert(strlen(name) < 9);
+	size_t name_length = strlen(name);
+	assert(name_length < 9);
 
 	struct dos_header dos_header = { 0 };
 	if (!seek_and_read_bytes((uint8_t *)&dos_header, sizeof(dos_header), IMAGE_BASE, f)) {
@@ -153,7 +154,7 @@ bool find_section_info(const char *name, FILE *f, size_t *position_out, size_t *
 			return false;
 		}
 
-		if (!strncmp(name, section_header.name, sizeof(section_header.name))) {
+		if (!strncmp(name, section_header.name, name_length)) {
 			*size_out = section_header.virtual_size;
 			*position_out = IMAGE_BASE + section_header.virtual_address;
 

@@ -152,7 +152,7 @@ For the steam launcher the settings would be
 /home/user/sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144 & WINEDLLOVERRIDES=dinput8=n,b %command%
 ``` 
 ###### 16:10
-Unfortunately, there is no mod that fixes the UI for 16:10, so Steam Deck users are out of luck. The game is still perfectly playable with patched resolution, of course, but the UI will be a little bit off.
+For 16:10 displays such as the Steam Deck, you can follow the same instructions as ultrawide using [this mod](https://www.nexusmods.com/sekiro/mods/2161) instead.
 #### Combined
 ```sh
 ./sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144

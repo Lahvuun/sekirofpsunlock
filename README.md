@@ -15,6 +15,10 @@ Download the latest release, or build it yourself.
 ```sh
 ./sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144
 ```
+#### Set all options in a single command
+```sh
+./sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144 disable-camera-reset autoloot
+```
 #### Starting from Steam
 Note: before running the patcher from Steam, you should run it from the terminal once to make sure that the patcher works without any errors.
 
@@ -103,6 +107,16 @@ will fail. As things are currently, you'd need to restart the game to try a
 different resolution. It's possible to have it working, but I don't see why
 anyone would want to set the resolution more than once per play session, so
 I didn't bother implementing it.
+#### Disable Camera Reset
+```sh
+./sekirofpsunlock 30 disable-camera-reset
+```
+Normally, if you press the target lock-on key and no target is in sight the game will reset and center the camera position on your character's facing direction. Including this option disabled that behavior.
+#### Autoloot
+```sh
+./sekirofpsunlock 30 autoloot
+```
+Including this option will pick up all loot an enemy drops automatically as long as you are in pick-up range (untested).
 ##### UI issues
 ###### 21:9
 ![UI elements not matching the resolution](https://staticdelivery.nexusmods.com/mods/2763/images/240/240-1606870250-478083709.png)
@@ -146,11 +160,11 @@ The last step is actually activating the mod loader. It is loaded through `dinpu
 
 ![DLL override example](override.png)
 
-For the steam launcher the settings would be 
+For the steam launcher the settings would be
 
 ```
 /home/user/sekirofpsunlock 30 set-resolution 2560 2560 1080 set-fps 144 & WINEDLLOVERRIDES=dinput8=n,b %command%
-``` 
+```
 ###### 16:10
 For 16:10 displays such as the Steam Deck, you can follow the same instructions as ultrawide using [this mod](https://www.nexusmods.com/sekiro/mods/2161) instead.
 #### Combined

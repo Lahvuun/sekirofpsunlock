@@ -5,6 +5,7 @@
 #include "sekiro.h"
 #include "fps.h"
 #include "resolution.h"
+#include "extras.h"
 
 #include <assert.h>
 #include <dirent.h>
@@ -22,6 +23,8 @@
 
 #define COMMAND_FPS "set-fps"
 #define COMMAND_RESOLUTION "set-resolution"
+#define COMMAND_CAMERA_RESET "disable-camera-reset"
+#define COMMAND_AUTOLOOT "autoloot"
 
 static time_t uint32_to_time(uint32_t value)
 {
@@ -64,6 +67,22 @@ static bool handle_arguments(struct context *context, char **arguments, int argu
 
 			arguments += 4;
 			arguments_size -= 4;
+		} else if (!strncmp(*arguments, COMMAND_CAMERA_RESET, strlen(COMMAND_CAMERA_RESET))) {
+			if (!patch_camera_reset(context)) {
+				fprintf(stderr, "patch_camera_reset() failed\n");
+				return false;
+			}
+
+			arguments += 1;
+			arguments_size -= 1;
+		} else if (!strncmp(*arguments, COMMAND_AUTOLOOT, strlen(COMMAND_AUTOLOOT))) {
+			if (!patch_autoloot(context)) {
+				fprintf(stderr, "patch_autoloot() failed\n");
+				return false;
+			}
+
+			arguments += 1;
+			arguments_size -= 1;
 		} else {
 			fprintf(stderr, "unknown command: %s\n", *arguments);
 

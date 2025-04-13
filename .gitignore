@@ -1,3 +1,4 @@
 *.o
 sekiro-set-fps
 sekiro-set-resolution
+.cache
